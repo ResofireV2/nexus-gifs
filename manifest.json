@@ -1,55 +1,10 @@
 {
-  "name": "GIFs",
-  "slug": "nexus-gifs",
-  "version": "1.0.0",
-  "description": "Insert GIFs and stickers from KLIPY into your posts. Search trending content or find exactly what you need with the built-in picker.",
-  "author": "billyrayfoss",
-  "homepage": "https://github.com/billyrayfoss/nexus-gifs",
-  "logo_url": "/ext/nexus-gifs/assets/logo.webp",
-  "banner_url": "/ext/nexus-gifs/assets/banner.webp",
-  "categories": ["media", "composer"],
-  "service_url": "https://gifs.billyrayfoss.com",
-  "webhook_url": "https://gifs.billyrayfoss.com/webhook",
-  "js_bundle_url": "https://gifs.billyrayfoss.com/assets/nexus-gifs.js",
-  "hooks": [],
-  "slots": [],
-  "settings_schema": {
-    "api_key": {
-      "type": "string",
-      "label": "KLIPY API Key",
-      "required": true,
-      "secret": true,
-      "placeholder": "Your KLIPY API key"
-    },
-    "content_filter": {
-      "type": "select",
-      "label": "Content Filter",
-      "options": [
-        { "value": "G",     "label": "G — Family Safe" },
-        { "value": "PG",    "label": "PG" },
-        { "value": "PG-13", "label": "PG-13" },
-        { "value": "R",     "label": "R — Unrestricted" }
-      ],
-      "default": "R"
-    },
-    "use_webp": {
-      "type": "boolean",
-      "label": "Use WebP format",
-      "default": false
-    }
-  },
-  "settings_tabs": [
-    {
-      "key": "credentials",
-      "label": "Credentials",
-      "icon": "fa-key",
-      "fields": ["api_key"]
-    },
-    {
-      "key": "content",
-      "label": "Content",
-      "icon": "fa-sliders",
-      "fields": ["content_filter", "use_webp"]
-    }
-  ]
+  "slug":        "nexus-gifs",
+  "name":        "GIFs",
+  "description": "Insert GIFs and stickers from KLIPY into your posts.",
+  "author":      "ResofireV2",
+  "homepage":    "https://github.com/ResofireV2/nexus-gifs",
+  "logo_url":    "/ext/nexus-gifs/assets/logo.webp",
+  "banner_url":  "/ext/nexus-gifs/assets/banner.webp",
+  "categories":  ["media", "composer"]
 }

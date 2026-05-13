@@ -1,0 +1,19 @@
+defmodule NexusGifs.MixProject do
+  use Mix.Project
+
+  def project do
+    [
+      app:     :nexus_gifs,
+      version: "1.0.0",
+      elixir:  "~> 1.17",
+      # Library — not a standalone application.
+      # Compiled and loaded into the running Nexus VM at install time.
+      elixirc_paths: ["lib"],
+    ]
+  end
+
+  # No application callback — Nexus manages supervision.
+  def application do
+    [extra_applications: [:logger]]
+  end
+end
