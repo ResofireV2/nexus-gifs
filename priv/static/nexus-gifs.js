@@ -517,7 +517,6 @@
   NE.registerToolbarButton({
     icon:  "fa-solid fa-photo-film",
     tip:   "Insert GIF or Sticker",
-    color: "var(--ac)",
     onClick(linkedItems, setLinkedItems) {
       const inserter = makeInserter();
       openGifPicker(inserter);
