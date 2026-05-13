@@ -1,19 +1,61 @@
+/**
+ * nexus-gifs — Nexus Extension Bundle v1.0.0
+ *
+ * Registers with NexusExtensions:
+ *   registerToolbarButton — GIF/sticker button in post composer
+ *   registerAdminPanel    — GIFs admin panel (API key + content settings)
+ */
+
 (function () {
   "use strict";
 
   const React = window.React;
+  const NE    = window.NexusExtensions;
+
+  // Guard — same pattern as Gamepedia
+  if (!React || !NE) {
+    console.warn("[nexus-gifs] React or NexusExtensions not available.");
+    return;
+  }
+
   const { useState, useEffect, useRef, useCallback } = React;
-  const NE = window.NexusExtensions;
+  const e = React.createElement;
 
-  const SLUG     = "nexus-gifs";
-  const BASE_API = "/api/v1/extensions/nexus-gifs/api/gifs";
+  // ---------------------------------------------------------------------------
+  // API base — mirrors Gamepedia's /ext/gamepedia/api pattern
+  // ---------------------------------------------------------------------------
 
-  // ── Stable customer_id for guest users ───────────────────────────────────────
+  const BASE = "/ext/nexus-gifs/api";
+
+  // ---------------------------------------------------------------------------
+  // Auth token helper — reads from localStorage exactly as Nexus does
+  // ---------------------------------------------------------------------------
+
+  function authHeaders() {
+    const token = localStorage.getItem("nexus_token");
+    return {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    };
+  }
+
+  function apiFetch(path, opts = {}) {
+    return fetch(BASE + path, {
+      ...opts,
+      headers: { ...authHeaders(), ...(opts.headers || {}) },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    }).then(r => r.json());
+  }
+
+  // ---------------------------------------------------------------------------
+  // Stable customer_id for KLIPY (uses Nexus user id if available)
+  // ---------------------------------------------------------------------------
+
   function getCustomerId() {
     const key = "nexus-gifs-cid";
     let id = sessionStorage.getItem(key);
     if (!id) {
-      id = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      id = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c => {
         const r = (Math.random() * 16) | 0;
         return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
       });
@@ -22,52 +64,33 @@
     return id;
   }
 
-  // ── API helpers ───────────────────────────────────────────────────────────────
-  function authHeaders() {
-    const token = localStorage.getItem("nexus_token");
-    return {
-      "Content-Type":  "application/json",
-      "Authorization": token ? `Bearer ${token}` : "",
-    };
-  }
+  // ---------------------------------------------------------------------------
+  // KLIPY fetchers — via our backend proxy at BASE/gifs/*
+  // ---------------------------------------------------------------------------
 
-  function apiGet(path) {
-    return fetch(path, { headers: authHeaders() }).then(r => r.json());
-  }
-
-  function apiPatch(path, body) {
-    return fetch(path, {
-      method: "PATCH",
-      headers: authHeaders(),
-      body: JSON.stringify(body),
-    }).then(r => r.json());
-  }
-
-  // ── KLIPY fetchers (via our backend proxy) ────────────────────────────────────
   function fetchTrending(type, page) {
     const cid = getCustomerId();
-    return apiGet(`${BASE_API}/trending?type=${type}&page=${page}&customer_id=${cid}`);
+    return apiFetch(`/gifs/trending?type=${type}&page=${page}&customer_id=${cid}`);
   }
 
   function fetchSearch(type, query, page) {
     const cid = getCustomerId();
-    return apiGet(`${BASE_API}/search?type=${type}&q=${encodeURIComponent(query)}&page=${page}&customer_id=${cid}`);
+    return apiFetch(`/gifs/search?type=${type}&q=${encodeURIComponent(query)}&page=${page}&customer_id=${cid}`);
   }
 
   function fireShare(type, slug, query) {
-    fetch(`${BASE_API}/share`, {
+    apiFetch("/gifs/share", {
       method: "POST",
-      headers: authHeaders(),
-      body: JSON.stringify({ type, slug, query: query || "", customer_id: getCustomerId() }),
+      body: { type, slug, query: query || "", customer_id: getCustomerId() },
     }).catch(() => {});
   }
 
-  // ── CSS injected once ─────────────────────────────────────────────────────────
-  (function injectCSS() {
-    if (document.getElementById("nexus-gifs-styles")) return;
-    const style = document.createElement("style");
-    style.id = "nexus-gifs-styles";
-    style.textContent = `
+  // ---------------------------------------------------------------------------
+  // CSS
+  // ---------------------------------------------------------------------------
+
+  const style = document.createElement("style");
+  style.textContent = `
 .ngifs-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:10000;display:flex;align-items:flex-end;justify-content:center;padding:0;animation:ngifs-fade-in 0.15s ease;}
 @media(min-width:600px){.ngifs-backdrop{align-items:center;padding:20px;}}
 @keyframes ngifs-fade-in{from{opacity:0}to{opacity:1}}
@@ -114,11 +137,30 @@
 .ngifs-attribution span{color:var(--ac-text);font-weight:500;}
 .ngifs-no-key{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:32px 24px;text-align:center;}
 .ngifs-no-key-icon{width:48px;height:48px;border-radius:14px;background:var(--ac-bg);border:0.5px solid var(--ac-border);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--ac-text);}
-    `;
-    document.head.appendChild(style);
-  })();
+.ngifs-admin{padding:16px 0;}
+.ngifs-admin-section{background:var(--s1);border:0.5px solid var(--b1);border-radius:10px;padding:16px 20px;margin-bottom:14px;}
+.ngifs-admin-section-title{font-size:12px;font-weight:500;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;}
+.ngifs-fi{width:100%;padding:11px 15px;background:rgba(255,255,255,.05);border:0.5px solid rgba(255,255,255,.1);border-radius:12px;color:var(--t1);font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;}
+.ngifs-fi::placeholder{color:var(--t4);}
+.ngifs-fi:focus{border-color:var(--ac-border);}
+.ngifs-fi-select{width:100%;padding:11px 15px;background:rgba(255,255,255,.05);border:0.5px solid rgba(255,255,255,.1);border-radius:12px;color:var(--t1);font-size:14px;outline:none;font-family:inherit;box-sizing:border-box;cursor:pointer;}
+.ngifs-label{font-size:12px;color:var(--t4);display:block;margin-bottom:6px;font-weight:500;}
+.ngifs-hint{font-size:11px;color:var(--t5);margin-top:5px;}
+.ngifs-msg-ok{padding:8px 12px;border-radius:8px;font-size:12px;font-weight:500;background:rgba(52,211,153,.1);color:var(--green);border:0.5px solid rgba(52,211,153,.2);margin-top:10px;}
+.ngifs-msg-err{padding:8px 12px;border-radius:8px;font-size:12px;font-weight:500;background:rgba(248,113,113,.1);color:var(--red);border:0.5px solid rgba(248,113,113,.2);margin-top:10px;}
+.ngifs-admin-tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:0.5px solid var(--b1);padding-bottom:0;}
+.ngifs-admin-tab{background:none;border:none;border-bottom:2px solid transparent;color:var(--t3);cursor:pointer;font-size:13px;padding:8px 14px 10px;font-family:inherit;transition:color .12s,border-color .12s;margin-bottom:-1px;}
+.ngifs-admin-tab:hover{color:var(--t1);}
+.ngifs-admin-tab.active{color:var(--ac);border-bottom-color:var(--ac);}
+.ngifs-tgl-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:0.5px solid rgba(255,255,255,.04);}
+.ngifs-tgl-row:last-child{border-bottom:none;}
+  `;
+  document.head.appendChild(style);
 
-  // ── URL extraction ────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // URL extraction from KLIPY nested file object
+  // ---------------------------------------------------------------------------
+
   function resolvePreviewUrl(item) {
     const f = item.file;
     if (!f) return null;
@@ -130,10 +172,13 @@
     const f = item.file;
     if (!f) return null;
     return f.hd?.gif?.url  || f.hd?.webp?.url || f.hd?.png?.url ||
-           f.md?.gif?.url  || f.md?.webp?.url || f.md?.png?.url || null;
+           f.md?.gif?.url  || f.md?.webp?.url  || f.md?.png?.url || null;
   }
 
-  // ── GIF Grid Item ─────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // GIF Grid Item — lazy loaded image with blur preview
+  // ---------------------------------------------------------------------------
+
   function GifItem({ item, onSelect }) {
     const [loaded, setLoaded] = useState(false);
     const previewUrl = resolvePreviewUrl(item);
@@ -142,23 +187,26 @@
     const blurStyle = item.blur_preview
       ? { backgroundImage: `url('${item.blur_preview}')`, backgroundSize: "cover", backgroundPosition: "center" }
       : {};
-    return React.createElement("button", {
+    return e("button", {
       className: "ngifs-item",
-      style: blurStyle,
-      title: item.title || "",
-      onClick: () => onSelect(item, embedUrl),
+      style:     blurStyle,
+      title:     item.title || "",
+      onClick:   () => onSelect(item, embedUrl),
     },
-      React.createElement("img", {
-        src: previewUrl,
-        alt: item.title || "",
+      e("img", {
+        src:       previewUrl,
+        alt:       item.title || "",
         className: loaded ? "loaded" : "loading",
-        onLoad:  () => setLoaded(true),
-        onError: () => setLoaded(true),
+        onLoad:    () => setLoaded(true),
+        onError:   () => setLoaded(true),
       })
     );
   }
 
-  // ── GIF Picker Modal ──────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // GIF Picker Modal
+  // ---------------------------------------------------------------------------
+
   function GifPickerModal({ onClose, onInsert, apiKeySet }) {
     const [tab,         setTab]         = useState("gifs");
     const [query,       setQuery]       = useState("");
@@ -198,12 +246,12 @@
     }, []);
 
     useEffect(() => {
-      const fn = e => { if (e.key === "Escape") onClose(); };
+      const fn = ev => { if (ev.key === "Escape") onClose(); };
       document.addEventListener("keydown", fn);
       return () => document.removeEventListener("keydown", fn);
     }, [onClose]);
 
-    const doSearch = useCallback((q) => {
+    function doSearch(q) {
       if (!q.trim()) { clearSearch(); return; }
       setIsSearching(true);
       setItems([]); setPage(1); setHasNext(true);
@@ -217,9 +265,9 @@
         })
         .catch(() => setError("Search failed."))
         .finally(() => setLoadingInit(false));
-    }, []);
+    }
 
-    const clearSearch = useCallback(() => {
+    function clearSearch() {
       setQuery(""); setIsSearching(false);
       setItems([]); setPage(1); setHasNext(true);
       setLoadingInit(true); setError(null);
@@ -232,9 +280,9 @@
         })
         .catch(() => setError("Could not load content."))
         .finally(() => setLoadingInit(false));
-    }, []);
+    }
 
-    const loadMore = useCallback(() => {
+    function loadMore() {
       if (loadingMore || !hasNext) return;
       setLoadingMore(true);
       const currentPage = page;
@@ -250,122 +298,134 @@
         })
         .catch(() => {})
         .finally(() => setLoadingMore(false));
-    }, [loadingMore, hasNext, page, isSearching]);
+    }
 
-    const onScroll = useCallback((e) => {
-      const el = e.target;
+    function onScroll(ev) {
+      const el = ev.target;
       if (el.scrollHeight - el.scrollTop - el.clientHeight < 240) loadMore();
-    }, [loadMore]);
+    }
 
-    const handleSelect = useCallback((item, embedUrl) => {
+    function handleSelect(item, embedUrl) {
       const title = item.title || (tabRef.current === "stickers" ? "sticker" : "GIF");
       onInsert(`![${title}](${embedUrl})`);
       fireShare(tabRef.current, item.slug, isSearching ? queryRef.current.trim() : "");
       onClose();
-    }, [isSearching, onInsert, onClose]);
+    }
 
-    const renderContent = () => {
+    function renderContent() {
       if (!apiKeySet) {
-        return React.createElement("div", { className: "ngifs-no-key" },
-          React.createElement("div", { className: "ngifs-no-key-icon" },
-            React.createElement("i", { className: "fa-solid fa-key" })
+        return e("div", { className: "ngifs-no-key" },
+          e("div", { className: "ngifs-no-key-icon" },
+            e("i", { className: "fa-solid fa-key" })
           ),
-          React.createElement("div", { style: { fontSize: 15, fontWeight: 600, color: "var(--t1)" } }, "KLIPY API Key Required"),
-          React.createElement("div", { style: { fontSize: 13, color: "var(--t4)", lineHeight: 1.6, maxWidth: 280 } },
+          e("div", { style: { fontSize: 15, fontWeight: 600, color: "var(--t1)" } },
+            "KLIPY API Key Required"
+          ),
+          e("div", { style: { fontSize: 13, color: "var(--t4)", lineHeight: 1.6, maxWidth: 280 } },
             "Add your KLIPY API key in Admin Panel \u2192 GIFs to enable this feature."
           )
         );
       }
       if (error) {
-        return React.createElement("div", { className: "ngifs-state" },
-          React.createElement("i", { className: "fa-solid fa-circle-exclamation" }),
-          React.createElement("span", null, error)
+        return e("div", { className: "ngifs-state" },
+          e("i", { className: "fa-solid fa-circle-exclamation" }),
+          e("span", null, error)
         );
       }
       if (loadingInit) {
-        return React.createElement("div", { className: "ngifs-state" },
-          React.createElement("div", { className: "ngifs-spinner" })
+        return e("div", { className: "ngifs-state" },
+          e("div", { className: "ngifs-spinner" })
         );
       }
       if (!items.length) {
-        return React.createElement("div", { className: "ngifs-state" },
-          React.createElement("i", { className: "fa-solid fa-face-sad-tear" }),
-          React.createElement("span", null, "No results found.")
+        return e("div", { className: "ngifs-state" },
+          e("i", { className: "fa-solid fa-face-sad-tear" }),
+          e("span", null, "No results found.")
         );
       }
-      return React.createElement("div", { className: "ngifs-grid-wrap", onScroll },
-        React.createElement("div", { className: "ngifs-grid" },
+      return e("div", { className: "ngifs-grid-wrap", onScroll },
+        e("div", { className: "ngifs-grid" },
           items.map((item, i) =>
-            React.createElement(GifItem, {
-              key: `${item.id || item.slug}-${i}`,
+            e(GifItem, {
+              key:      `${item.id || item.slug}-${i}`,
               item,
               onSelect: handleSelect,
             })
           )
         ),
-        loadingMore && React.createElement("div", { className: "ngifs-load-more" },
-          React.createElement("div", { className: "ngifs-spinner" })
+        loadingMore && e("div", { className: "ngifs-load-more" },
+          e("div", { className: "ngifs-spinner" })
         )
       );
-    };
+    }
 
-    return React.createElement("div", {
+    return e("div", {
       className: "ngifs-backdrop",
-      onClick: e => { if (e.target === e.currentTarget) onClose(); },
+      onClick:   ev => { if (ev.target === ev.currentTarget) onClose(); },
     },
-      React.createElement("div", { className: "ngifs-modal" },
-        React.createElement("div", { className: "ngifs-header" },
-          React.createElement("span", { className: "ngifs-title" }, "Insert Media"),
-          React.createElement("button", { className: "ngifs-close", onClick: onClose, "aria-label": "Close" },
-            React.createElement("i", { className: "fa-solid fa-xmark" })
-          )
+      e("div", { className: "ngifs-modal" },
+        e("div", { className: "ngifs-header" },
+          e("span", { className: "ngifs-title" }, "Insert Media"),
+          e("button", {
+            className: "ngifs-close",
+            onClick:   onClose,
+            "aria-label": "Close",
+          }, e("i", { className: "fa-solid fa-xmark" }))
         ),
-        React.createElement("div", { className: "ngifs-tabs" },
+        e("div", { className: "ngifs-tabs" },
           ["gifs", "stickers"].map(t =>
-            React.createElement("button", {
-              key: t,
+            e("button", {
+              key:       t,
               className: `ngifs-tab${tab === t ? " active" : ""}`,
-              onClick: () => { if (tab !== t) setTab(t); },
+              onClick:   () => { if (tab !== t) setTab(t); },
             }, t.charAt(0).toUpperCase() + t.slice(1))
           )
         ),
-        React.createElement("div", { className: "ngifs-search" },
-          React.createElement("div", { className: "ngifs-search-inner" },
-            React.createElement("i", { className: "fa-solid fa-magnifying-glass" }),
-            React.createElement("input", {
-              ref: inputRef,
-              type: "text",
-              placeholder: "Search KLIPY",
-              value: query,
-              onChange: e => setQuery(e.target.value),
-              onKeyDown: e => { if (e.key === "Enter") { e.preventDefault(); doSearch(query); } },
+        e("div", { className: "ngifs-search" },
+          e("div", { className: "ngifs-search-inner" },
+            e("i", { className: "fa-solid fa-magnifying-glass" }),
+            e("input", {
+              ref:          inputRef,
+              type:         "text",
+              placeholder:  "Search KLIPY",
+              value:        query,
+              onChange:     ev => setQuery(ev.target.value),
+              onKeyDown:    ev => { if (ev.key === "Enter") { ev.preventDefault(); doSearch(query); } },
               autoComplete: "off",
-              spellCheck: false,
+              spellCheck:   false,
             }),
-            isSearching && React.createElement("button", { className: "ngifs-clear-btn", onClick: clearSearch }, "Trending")
+            isSearching && e("button", {
+              className: "ngifs-clear-btn",
+              onClick:   clearSearch,
+            }, "Trending")
           )
         ),
         renderContent(),
-        React.createElement("div", { className: "ngifs-footer" },
-          React.createElement("a", {
-            href: "https://klipy.com",
-            target: "_blank",
-            rel: "noopener noreferrer",
+        e("div", { className: "ngifs-footer" },
+          e("a", {
+            href:      "https://klipy.com",
+            target:    "_blank",
+            rel:       "noopener noreferrer",
             className: "ngifs-attribution",
-          }, "Powered by ", React.createElement("span", null, "KLIPY"))
+          }, "Powered by ", e("span", null, "KLIPY"))
         )
       )
     );
   }
 
-  // ── Modal portal ──────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Modal portal — opens/closes the GIF picker
+  // ---------------------------------------------------------------------------
+
   let _modalRoot = null;
 
   function openGifPicker(onInsert) {
     if (_modalRoot) return;
+
     const container = document.createElement("div");
     container.id = "nexus-gifs-modal-root";
     document.body.appendChild(container);
+
     const root = window.ReactDOM.createRoot(container);
     _modalRoot = root;
 
@@ -375,22 +435,25 @@
       _modalRoot = null;
     }
 
-    // Optimistically render with apiKeySet=true, then verify
-    root.render(React.createElement(GifPickerModal, { onClose: close, onInsert, apiKeySet: true }));
+    // Render immediately — optimistic (assumes key is set)
+    root.render(e(GifPickerModal, { onClose: close, onInsert, apiKeySet: true }));
 
-    // Check if the api_key is actually set in our backend
-    apiGet(`/api/v1/extensions/${SLUG}/api/settings`)
+    // Verify API key is actually configured on our backend
+    apiFetch("/settings")
       .then(d => {
         if (!d.api_key_set) {
-          root.render(React.createElement(GifPickerModal, { onClose: close, onInsert, apiKeySet: false }));
+          root.render(e(GifPickerModal, { onClose: close, onInsert, apiKeySet: false }));
         }
       })
-      .catch(() => {}); // if check fails, optimistic render stands
+      .catch(() => {}); // optimistic render stands on network error
   }
 
-  // ── Cursor insertion ──────────────────────────────────────────────────────────
-  // Called from toolbar onMouseDown — textarea still has focus at this point
-  // because onMouseDown + e.preventDefault() on the toolbar button prevents blur.
+  // ---------------------------------------------------------------------------
+  // Cursor insertion — captures textarea reference before modal opens.
+  // The toolbar button uses onMouseDown + e.preventDefault() (Nexus pattern)
+  // so the textarea retains focus when onClick fires.
+  // ---------------------------------------------------------------------------
+
   function makeInserter() {
     const active = document.activeElement;
     const ta     = (active && active.tagName === "TEXTAREA") ? active : null;
@@ -406,10 +469,8 @@
       const after    = ta.value.slice(end);
       const prefix   = (before.length > 0 && !before.endsWith("\n")) ? "\n" : "";
       const toInsert = prefix + markdown + "\n";
-
       ta.focus();
       ta.setSelectionRange(start, end);
-
       if (!document.execCommand("insertText", false, toInsert)) {
         const setter = Object.getOwnPropertyDescriptor(
           window.HTMLTextAreaElement.prototype, "value"
@@ -422,14 +483,18 @@
     };
   }
 
-  // ── Admin panel ───────────────────────────────────────────────────────────────
-  // The API key is stored in our own backend (so it never leaves server-side).
-  // Content filter and WebP toggle are stored in Nexus extension settings via
-  // TabbedPanel, which also integrates with the admin top-bar Save Changes button.
-  function GifsAdminPanel() {
-    // NexusExtensionTemplates is guaranteed present when this component renders
-    const { TabbedPanel } = window.NexusExtensionTemplates;
+  // ---------------------------------------------------------------------------
+  // Admin Panel — follows Gamepedia's pattern:
+  //   - Loads settings from /api/v1/admin/extensions/nexus-gifs on mount
+  //   - Wires window._nexusAdminSaveFn for the top-bar Save Changes button
+  //   - Calls window._nexusAdminSetDirty() when values change
+  // Two tabs: Credentials (API key → our backend) | Content (filter, webp → Nexus settings)
+  // ---------------------------------------------------------------------------
 
+  function GifsAdminPanel() {
+    const [tab, setTab] = useState("credentials");
+
+    // Credentials state — writes to our backend via /ext/nexus-gifs/api/settings
     const [apiKey,     setApiKey]     = useState("");
     const [apiKeySet,  setApiKeySet]  = useState(false);
     const [apiKeyMask, setApiKeyMask] = useState(null);
@@ -437,155 +502,228 @@
     const [keyLoading, setKeyLoading] = useState(true);
     const [keyMsg,     setKeyMsg]     = useState(null);
 
+    // Content settings state — writes to Nexus extension settings
+    const [contentFilter, setContentFilter] = useState("R");
+    const [useWebp,       setUseWebp]       = useState(false);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
+
     useEffect(() => {
-      apiGet(`/api/v1/extensions/${SLUG}/api/settings`)
+      // Load API key status from our backend
+      apiFetch("/settings")
         .then(d => {
           setApiKeySet(d.api_key_set || false);
           setApiKeyMask(d.api_key_masked || null);
         })
         .catch(() => {})
         .finally(() => setKeyLoading(false));
+
+      // Load content settings from Nexus extension settings — same pattern as Gamepedia
+      fetch("/api/v1/admin/extensions/nexus-gifs", { headers: authHeaders() })
+        .then(r => r.json())
+        .then(d => {
+          const s = d.extension?.settings || {};
+          setContentFilter(s.content_filter || "R");
+          setUseWebp(s.use_webp || false);
+          setSettingsLoaded(true);
+        })
+        .catch(() => setSettingsLoaded(true));
     }, []);
 
-    const saveApiKey = async () => {
+    // Wire the top-bar Save Changes button — same pattern as Gamepedia
+    function wireAdminSave() {
+      window._nexusAdminSaveFn = async () => {
+        // Save content settings to Nexus
+        await fetch("/api/v1/admin/extensions/nexus-gifs/settings", {
+          method:  "PATCH",
+          headers: authHeaders(),
+          body:    JSON.stringify({ settings: {
+            content_filter: contentFilter,
+            use_webp:       useWebp,
+          }}),
+        });
+      };
+    }
+
+    function saveApiKey() {
       if (!apiKey.trim()) return;
       setKeySaving(true); setKeyMsg(null);
-      try {
-        const d = await apiPatch(`/api/v1/extensions/${SLUG}/api/settings`, { api_key: apiKey.trim() });
-        if (d.error) {
-          setKeyMsg({ type: "err", text: d.error });
-        } else {
-          setApiKeySet(d.api_key_set || false);
-          setApiKeyMask(d.api_key_masked || null);
-          setApiKey("");
-          setKeyMsg({ type: "ok", text: "API key saved." });
-        }
-      } catch {
-        setKeyMsg({ type: "err", text: "Save failed." });
-      } finally {
-        setKeySaving(false);
-      }
-    };
+      apiFetch("/settings", {
+        method: "PATCH",
+        body:   { api_key: apiKey.trim() },
+      })
+        .then(d => {
+          if (d.error) {
+            setKeyMsg({ type: "err", text: d.error });
+          } else {
+            setApiKeySet(d.api_key_set || false);
+            setApiKeyMask(d.api_key_masked || null);
+            setApiKey("");
+            setKeyMsg({ type: "ok", text: "API key saved." });
+          }
+        })
+        .catch(() => setKeyMsg({ type: "err", text: "Save failed." }))
+        .finally(() => setKeySaving(false));
+    }
 
-    const fi = {
-      width: "100%", padding: "11px 15px",
-      background: "rgba(255,255,255,0.05)",
-      border: "0.5px solid rgba(255,255,255,0.1)",
-      borderRadius: 12, color: "var(--t1)",
-      fontSize: 14, outline: "none",
-      fontFamily: "inherit", boxSizing: "border-box",
-    };
+    return e("div", { className: "ngifs-admin" },
 
-    return React.createElement("div", { style: { maxWidth: 520 } },
-
-      // API Key section — writes to our backend
-      React.createElement("div", {
-        style: {
-          background: "rgba(255,255,255,0.02)",
-          border: "0.5px solid var(--b1)",
-          borderRadius: 14, padding: "20px 22px", marginBottom: 24,
-        }
-      },
-        React.createElement("div", {
-          style: { fontSize: 12, fontWeight: 500, color: "var(--t5)", textTransform: "uppercase", letterSpacing: ".8px", marginBottom: 16, paddingBottom: 8, borderBottom: "0.5px solid var(--b1)" }
-        }, "KLIPY Credentials"),
-
-        keyLoading
-          ? React.createElement("div", { style: { color: "var(--t5)", fontSize: 13 } },
-              React.createElement("i", { className: "fa-solid fa-spinner fa-spin", style: { marginRight: 6 } }), "Loading…"
+      // Tabs — same structure as Gamepedia admin tabs
+      e("div", { className: "ngifs-admin-tabs" },
+        [
+          { key: "credentials", icon: "fa-key",     label: "Credentials" },
+          { key: "content",     icon: "fa-sliders",  label: "Content Settings" },
+        ].map(t =>
+          e("button", {
+            key:       t.key,
+            className: "ngifs-admin-tab" + (tab === t.key ? " active" : ""),
+            onClick:   () => {
+              setTab(t.key);
+              // Wire Save Changes button when switching to content tab
+              if (t.key === "content") {
+                wireAdminSave();
+                window._nexusAdminSetDirty && window._nexusAdminSetDirty();
+              } else {
+                // Credentials tab has its own save button — unwire top-bar save
+                window._nexusAdminSaveFn = null;
+              }
+            },
+          },
+            e("span", { style: { display: "flex", alignItems: "center", gap: 6 } },
+              e("i", { className: `fa-solid ${t.icon}`, style: { fontSize: 12 } }),
+              t.label
             )
-          : React.createElement("div", null,
-              React.createElement("label", {
-                style: { fontSize: 14, color: "var(--t3)", marginBottom: 7, display: "block" }
-              }, "KLIPY API Key"),
-              React.createElement("input", {
-                type: "password", style: fi,
-                value: apiKey,
-                onChange: e => setApiKey(e.target.value),
-                onKeyDown: e => { if (e.key === "Enter") saveApiKey(); },
-                placeholder: apiKeySet
-                  ? `Current: ${apiKeyMask || "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"} \u2014 type to replace`
-                  : "Enter your KLIPY API key",
-                autoComplete: "new-password",
-              }),
-              React.createElement("div", { style: { fontSize: 12, color: "var(--t5)", marginTop: 5 } },
-                "Get a free key at ",
-                React.createElement("a", {
-                  href: "https://klipy.com", target: "_blank", rel: "noopener",
-                  style: { color: "var(--ac-text)" }
-                }, "klipy.com")
-              ),
-              apiKeySet && React.createElement("div", {
-                style: { marginTop: 8, display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--green)" }
-              },
-                React.createElement("i", { className: "fa-solid fa-circle-check" }),
-                " API key is configured"
-              ),
-              keyMsg && React.createElement("div", {
-                style: {
-                  marginTop: 10, padding: "8px 12px", borderRadius: 8,
-                  fontSize: 12, fontWeight: 500,
-                  background: keyMsg.type === "ok" ? "rgba(52,211,153,.1)" : "rgba(248,113,113,.1)",
-                  color: keyMsg.type === "ok" ? "var(--green)" : "var(--red)",
-                  border: `0.5px solid ${keyMsg.type === "ok" ? "rgba(52,211,153,.2)" : "rgba(248,113,113,.2)"}`,
-                }
-              }, keyMsg.text),
-              React.createElement("button", {
-                className: "btn-primary",
-                style: { marginTop: 14, fontSize: 13, padding: "7px 18px", opacity: keySaving || !apiKey.trim() ? 0.5 : 1 },
-                onClick: saveApiKey,
-                disabled: keySaving || !apiKey.trim(),
-              }, keySaving ? "Saving\u2026" : "Save API Key")
-            )
+          )
+        )
       ),
 
-      // Content settings via TabbedPanel — integrates with Nexus Save Changes button
-      React.createElement(TabbedPanel, {
-        slug: SLUG,
-        tabs: [{
-          key:    "content",
-          label:  "Content Settings",
-          icon:   "fa-sliders",
-          fields: [
-            {
-              key:     "content_filter",
-              label:   "Content Filter",
-              type:    "select",
-              options: [
-                { value: "G",     label: "G \u2014 Family Safe" },
-                { value: "PG",    label: "PG" },
-                { value: "PG-13", label: "PG-13" },
-                { value: "R",     label: "R \u2014 Unrestricted" },
-              ],
-              hint: "Controls the maturity of content returned by KLIPY search.",
-            },
-            {
-              key:   "use_webp",
-              label: "Use WebP format",
-              type:  "boolean",
-              hint:  "Smaller files, better performance. Disable if images don't display correctly.",
-            },
-          ],
-        }],
-      })
+      // ── Credentials Tab ──────────────────────────────────────────────────────
+      tab === "credentials" && e("div", null,
+        e("div", { className: "ngifs-admin-section" },
+          e("div", { className: "ngifs-admin-section-title" }, "KLIPY API Key"),
+          e("p", { style: { fontSize: 12, color: "var(--t4)", marginBottom: 16 } },
+            "Required to load and search GIFs. Get a free key at ",
+            e("a", { href: "https://klipy.com", target: "_blank", style: { color: "var(--ac)" } }, "klipy.com"),
+            ". The key is stored server-side and never exposed to the browser."
+          ),
+          keyLoading
+            ? e("div", { style: { color: "var(--t5)", fontSize: 13 } },
+                e("i", { className: "fa-solid fa-spinner fa-spin", style: { marginRight: 6 } }),
+                "Loading\u2026"
+              )
+            : e("div", null,
+                apiKeySet && e("div", {
+                  style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--green)", marginBottom: 12 }
+                },
+                  e("i", { className: "fa-solid fa-circle-check" }),
+                  `API key configured: ${apiKeyMask || "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"}`
+                ),
+                e("label", { className: "ngifs-label" },
+                  apiKeySet ? "Replace API Key" : "API Key"
+                ),
+                e("input", {
+                  type:         "password",
+                  className:    "ngifs-fi",
+                  value:        apiKey,
+                  onChange:     ev => setApiKey(ev.target.value),
+                  onKeyDown:    ev => { if (ev.key === "Enter") saveApiKey(); },
+                  placeholder:  apiKeySet ? "Enter new key to replace" : "Paste your KLIPY API key",
+                  autoComplete: "new-password",
+                }),
+                keyMsg && e("div", {
+                  className: keyMsg.type === "ok" ? "ngifs-msg-ok" : "ngifs-msg-err"
+                }, keyMsg.text),
+                e("div", { style: { marginTop: 14 } },
+                  e("button", {
+                    className: "btn-primary",
+                    style:     { fontSize: 13, padding: "7px 20px", opacity: keySaving || !apiKey.trim() ? 0.5 : 1 },
+                    onClick:   saveApiKey,
+                    disabled:  keySaving || !apiKey.trim(),
+                  }, keySaving ? "Saving\u2026" : "Save API Key")
+                )
+              )
+        )
+      ),
+
+      // ── Content Settings Tab ─────────────────────────────────────────────────
+      tab === "content" && e("div", null,
+        !settingsLoaded
+          ? e("div", { style: { color: "var(--t5)", fontSize: 13, padding: "24px 0" } },
+              e("i", { className: "fa-solid fa-spinner fa-spin", style: { marginRight: 6 } }),
+              "Loading\u2026"
+            )
+          : e("div", null,
+              e("div", { className: "ngifs-admin-section" },
+                e("div", { className: "ngifs-admin-section-title" }, "Content Filter"),
+                e("label", { className: "ngifs-label" }, "Maturity rating"),
+                e("select", {
+                  className: "ngifs-fi-select",
+                  value:     contentFilter,
+                  onChange:  ev => {
+                    setContentFilter(ev.target.value);
+                    wireAdminSave();
+                    window._nexusAdminSetDirty && window._nexusAdminSetDirty();
+                  },
+                },
+                  e("option", { value: "G" },     "G \u2014 Family Safe"),
+                  e("option", { value: "PG" },    "PG"),
+                  e("option", { value: "PG-13" }, "PG-13"),
+                  e("option", { value: "R" },     "R \u2014 Unrestricted")
+                ),
+                e("div", { className: "ngifs-hint" },
+                  "Controls the maturity of content returned by KLIPY search."
+                )
+              ),
+              e("div", { className: "ngifs-admin-section" },
+                e("div", { className: "ngifs-admin-section-title" }, "Format"),
+                e("div", { className: "ngifs-tgl-row" },
+                  e("div", null,
+                    e("div", { style: { fontSize: 14, color: "var(--t2)", marginBottom: 2 } }, "Use WebP format"),
+                    e("div", { className: "ngifs-hint" },
+                      "Smaller files, better performance. Disable if GIFs don\u2019t display correctly."
+                    )
+                  ),
+                  e("div", {
+                    className: "tgl",
+                    style:     { background: useWebp ? "var(--ac)" : "var(--tgl-off)", cursor: "pointer", flexShrink: 0 },
+                    onClick:   () => {
+                      setUseWebp(p => !p);
+                      wireAdminSave();
+                      window._nexusAdminSetDirty && window._nexusAdminSetDirty();
+                    },
+                  },
+                    e("div", {
+                      className: "tgl-knob",
+                      style:     { left: useWebp ? 23 : 3, background: useWebp ? "var(--ac-on)" : "var(--tgl-knob-off)" },
+                    })
+                  )
+                )
+              ),
+              e("p", { style: { fontSize: 12, color: "var(--t4)", marginTop: 4 } },
+                e("i", { className: "fa-solid fa-info-circle", style: { marginRight: 5 } }),
+                "Use the Save Changes button above to save content settings."
+              )
+            )
+      )
     );
   }
 
-  // ── Register ──────────────────────────────────────────────────────────────────
+  // ---------------------------------------------------------------------------
+  // Registrations
+  // ---------------------------------------------------------------------------
 
-  // Toolbar button — icon must be the full FA class string
+  // Composer toolbar button
   NE.registerToolbarButton({
     icon:  "fa-solid fa-photo-film",
     tip:   "Insert GIF or Sticker",
     color: "var(--ac)",
-    onClick(_linkedItems, _setLinkedItems) {
+    onClick(linkedItems, setLinkedItems) {
       const inserter = makeInserter();
       openGifPicker(inserter);
     },
   }, 60);
 
   // Admin panel — appears under "installed extensions" in the admin sidebar
-  NE.registerAdminPanel(SLUG, {
+  NE.registerAdminPanel("nexus-gifs", {
     label:     "GIFs",
     icon:      "fa-photo-film",
     component: GifsAdminPanel,
