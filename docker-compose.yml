@@ -1,0 +1,37 @@
+services:
+  nexus_gifs:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "4002:4002"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      NEXUS_PROXY_SECRET: ${NEXUS_PROXY_SECRET}
+      PORT: "4002"
+      MIX_ENV: prod
+    networks:
+      - nexus_gifs_net
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nexus_gifs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-nexus_gifs_prod}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - nexus_gifs_net
+
+volumes:
+  pgdata:
+
+networks:
+  nexus_gifs_net:
+    driver: bridge
