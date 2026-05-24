@@ -13,47 +13,6 @@
   "tags":             ["media", "composer"],
   "js_bundle":        "nexus-gifs.js",
 
-  "settings_schema": {
-    "api_key": {
-      "type":        "string",
-      "label":       "KLIPY API Key",
-      "placeholder": "Your KLIPY API key",
-      "secret":      true,
-      "required":    true
-    },
-    "content_filter": {
-      "type":    "select",
-      "label":   "Content Filter",
-      "default": "R",
-      "options": [
-        {"value": "G",     "label": "G — Family Safe"},
-        {"value": "PG",    "label": "PG"},
-        {"value": "PG-13", "label": "PG-13"},
-        {"value": "R",     "label": "R — Unrestricted"}
-      ]
-    },
-    "use_webp": {
-      "type":    "boolean",
-      "label":   "Use WebP format",
-      "default": false
-    }
-  },
-
-  "settings_tabs": [
-    {
-      "key":    "credentials",
-      "label":  "Credentials",
-      "icon":   "fa-key",
-      "fields": ["api_key"]
-    },
-    {
-      "key":    "content",
-      "label":  "Content",
-      "icon":   "fa-sliders",
-      "fields": ["content_filter", "use_webp"]
-    }
-  ],
-
   "toolbar_buttons": [
     {
       "id":       "gif-picker",
