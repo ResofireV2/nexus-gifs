@@ -16,7 +16,7 @@ defmodule NexusGifs do
   @impl true
   def routes do
     [
-      {"/api", NexusGifs.ApiRouter, []},
+      {"/", NexusGifs.ApiRouter, []},
     ]
   end
 
