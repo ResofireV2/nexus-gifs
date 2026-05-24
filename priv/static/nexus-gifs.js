@@ -418,16 +418,9 @@
       _modalRoot = null;
     }
 
-    // Render optimistically — check API key state in the background
+    // Render the modal — the trending fetch will surface any backend error
+    // (missing API key, network failure) via the modal's own error state.
     root.render(e(GifPickerModal, { onClose: close, onInsert, apiKeySet: true }));
-
-    apiFetch("/settings")
-      .then(d => {
-        if (!d.api_key_set) {
-          root.render(e(GifPickerModal, { onClose: close, onInsert, apiKeySet: false }));
-        }
-      })
-      .catch(() => {}); // optimistic render stands on network error
   }
 
   // ---------------------------------------------------------------------------

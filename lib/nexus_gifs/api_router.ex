@@ -12,20 +12,15 @@ defmodule NexusGifs.ApiRouter do
 
   Settings are read fresh per request from Nexus.Extensions so they always
   reflect what the admin has configured — no caching, no GenServer needed.
+
+  The picker opens optimistically and relies on trending/search responses to
+  surface errors (e.g. missing API key) rather than a separate preflight.
   """
 
   use Plug.Router
 
   plug :match
   plug :dispatch
-
-  # GET /settings — returns whether the API key is configured.
-  # Called by the JS bundle before opening the GIF picker so it can show
-  # a "key required" prompt rather than a failed fetch if unconfigured.
-  get "/settings" do
-    api_key = NexusGifs.settings()["api_key"]
-    send_json(conn, 200, %{api_key_set: not (is_nil(api_key) or api_key == "")})
-  end
 
   # GET /gifs/trending?type=gifs&page=1
   get "/gifs/trending" do
