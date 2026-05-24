@@ -1,10 +1,71 @@
 {
-  "slug":        "nexus-gifs",
-  "name":        "GIFs",
-  "description": "Insert GIFs and stickers from KLIPY into your posts.",
-  "author":      "ResofireV2",
-  "homepage":    "https://github.com/ResofireV2/nexus-gifs",
-  "logo_url":    "/ext/nexus-gifs/assets/logo.webp",
-  "banner_url":  "/ext/nexus-gifs/assets/banner.webp",
-  "categories":  ["media", "composer"]
+  "$schema":          "https://billyrayfoss.com/manifest_schema.json",
+  "manifest_version": 2,
+  "name":             "GIFs",
+  "slug":             "nexus-gifs",
+  "version":          "2.0.0",
+  "module":           "NexusGifs",
+  "description":      "Insert GIFs and stickers from KLIPY into your posts.",
+  "author":           "ResofireV2",
+  "homepage":         "https://github.com/ResofireV2/nexus-gifs",
+  "logo_url":         "/ext/nexus-gifs/assets/logo.webp",
+  "banner_url":       "/ext/nexus-gifs/assets/banner.webp",
+  "tags":             ["media", "composer"],
+  "js_bundle":        "nexus-gifs.js",
+
+  "settings_schema": {
+    "api_key": {
+      "type":        "string",
+      "label":       "KLIPY API Key",
+      "placeholder": "Your KLIPY API key",
+      "secret":      true,
+      "required":    true
+    },
+    "content_filter": {
+      "type":    "select",
+      "label":   "Content Filter",
+      "default": "R",
+      "options": [
+        {"value": "G",     "label": "G — Family Safe"},
+        {"value": "PG",    "label": "PG"},
+        {"value": "PG-13", "label": "PG-13"},
+        {"value": "R",     "label": "R — Unrestricted"}
+      ]
+    },
+    "use_webp": {
+      "type":    "boolean",
+      "label":   "Use WebP format",
+      "default": false
+    }
+  },
+
+  "settings_tabs": [
+    {
+      "key":    "credentials",
+      "label":  "Credentials",
+      "icon":   "fa-key",
+      "fields": ["api_key"]
+    },
+    {
+      "key":    "content",
+      "label":  "Content",
+      "icon":   "fa-sliders",
+      "fields": ["content_filter", "use_webp"]
+    }
+  ],
+
+  "toolbar_buttons": [
+    {
+      "id":       "gif-picker",
+      "icon":     "fa-solid fa-photo-film",
+      "tip":      "Insert GIF or Sticker",
+      "scope":    "both",
+      "priority": 60
+    }
+  ],
+
+  "admin_panel": {
+    "label": "GIFs",
+    "icon":  "fa-photo-film"
+  }
 }

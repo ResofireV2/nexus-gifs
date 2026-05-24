@@ -4,7 +4,7 @@ defmodule NexusGifs.MixProject do
   def project do
     [
       app:     :nexus_gifs,
-      version: "1.0.0",
+      version: "2.0.0",
       elixir:  "~> 1.17",
       # Library — not a standalone application.
       # Compiled and loaded into the running Nexus VM at install time.

@@ -2,86 +2,33 @@ defmodule NexusGifs do
   @moduledoc """
   nexus-gifs — GIF and Sticker picker for Nexus.
 
-  Adds a GIF/sticker toolbar button to the post composer.
+  Adds a GIF/sticker toolbar button to the post and reply composers.
   Powered by KLIPY. Runs inside the Nexus VM with no separate service required.
+
+  Settings (stored in Nexus's extensions.settings column):
+    - "api_key"        — KLIPY API key (string, required)
+    - "content_filter" — "G" | "PG" | "PG-13" | "R"  (default "R")
+    - "use_webp"       — boolean (default false)
   """
 
   use Nexus.Extensions.Behaviour
 
-  # ---------------------------------------------------------------------------
-  # Manifest
-  # ---------------------------------------------------------------------------
-
   @impl true
-  def manifest do
-    %{
-      slug:        "nexus-gifs",
-      name:        "GIFs",
-      version:     "1.0.0",
-      description: "Insert GIFs and stickers from KLIPY into your posts.",
-      author:      "ResofireV2",
-      homepage:    "https://github.com/ResofireV2/nexus-gifs",
-      logo_url:    "/ext/nexus-gifs/assets/logo.webp",
-      banner_url:  "/ext/nexus-gifs/assets/banner.webp",
-      categories:  ["media", "composer"],
-    }
-  end
-
-  # ---------------------------------------------------------------------------
-  # JS bundle — served at /ext/nexus-gifs/assets/nexus-gifs.js
-  # ---------------------------------------------------------------------------
-
-  @impl true
-  def js_bundle_path, do: "nexus-gifs.js"
-
-  # ---------------------------------------------------------------------------
-  # Settings schema — stored in Nexus extension settings table
-  # ---------------------------------------------------------------------------
-
-  @impl true
-  def settings_schema do
-    %{
-      "api_key" => %{
-        "type"        => "string",
-        "label"       => "KLIPY API Key",
-        "placeholder" => "Your KLIPY API key",
-        "secret"      => true,
-        "required"    => true,
-      },
-      "content_filter" => %{
-        "type"    => "select",
-        "label"   => "Content Filter",
-        "default" => "R",
-        "options" => [
-          %{"value" => "G",     "label" => "G — Family Safe"},
-          %{"value" => "PG",    "label" => "PG"},
-          %{"value" => "PG-13", "label" => "PG-13"},
-          %{"value" => "R",     "label" => "R — Unrestricted"},
-        ],
-      },
-      "use_webp" => %{
-        "type"    => "boolean",
-        "label"   => "Use WebP format",
-        "default" => false,
-      },
-    }
-  end
-
-  @impl true
-  def settings_tabs do
+  def routes do
     [
-      %{
-        "key"    => "credentials",
-        "label"  => "Credentials",
-        "icon"   => "fa-key",
-        "fields" => ["api_key"],
-      },
-      %{
-        "key"    => "content",
-        "label"  => "Content",
-        "icon"   => "fa-sliders",
-        "fields" => ["content_filter", "use_webp"],
-      },
+      {"/api", NexusGifs.ApiRouter, []},
     ]
+  end
+
+  # ---------------------------------------------------------------------------
+  # Settings helper — reads from the shared Nexus extensions table.
+  # Used by NexusGifs.ApiRouter to fetch current settings per request.
+  # ---------------------------------------------------------------------------
+
+  def settings do
+    case Nexus.Extensions.get_extension_by_slug("nexus-gifs") do
+      nil -> %{}
+      ext -> ext.settings || %{}
+    end
   end
 end

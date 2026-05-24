@@ -1,18 +1,15 @@
 /**
- * nexus-gifs — Nexus Extension Bundle v1.0.0
+ * nexus-gifs — Nexus Extension Bundle v2.0.0
  *
  * Registers with NexusExtensions:
- *   registerToolbarButton — GIF/sticker button in post composer
- *   registerAdminPanel    — GIFs admin panel (uses NexusExtensionTemplates.TabbedPanel)
- *
- * KLIPY API is called directly from the browser.
- * The API key is stored in Nexus extension settings and read via
- * GET /api/v1/admin/extensions/nexus-gifs — same pattern as Gamepedia's IGDB key.
+ *   registerToolbarButton — GIF/sticker button in post and reply composers
+ *   registerAdminPanel    — GIFs admin panel via NexusExtensionTemplates
  */
 
 (function () {
   "use strict";
 
+  const SLUG  = "nexus-gifs";
   const React = window.React;
   const NE    = window.NexusExtensions;
 
@@ -25,14 +22,35 @@
   const e = React.createElement;
 
   // ---------------------------------------------------------------------------
-  // KLIPY API — called directly from the browser
-  // API key is loaded from Nexus extension settings on modal open.
+  // API base — all GIF API calls go through Nexus's extension proxy
   // ---------------------------------------------------------------------------
 
-  const KLIPY_BASE = "https://api.klipy.com/api/v1";
-  const PER_PAGE   = 24;
+  const BASE = "/ext/nexus-gifs/api";
 
-  // Stable anonymous customer_id — uses Nexus user ID if available via token
+  // ---------------------------------------------------------------------------
+  // Auth token helper — reads from localStorage exactly as Nexus does
+  // ---------------------------------------------------------------------------
+
+  function authHeaders() {
+    const token = localStorage.getItem("nexus_token");
+    return {
+      "Content-Type": "application/json",
+      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+    };
+  }
+
+  function apiFetch(path, opts = {}) {
+    return fetch(BASE + path, {
+      ...opts,
+      headers: { ...authHeaders(), ...(opts.headers || {}) },
+      body: opts.body ? JSON.stringify(opts.body) : undefined,
+    }).then(r => r.json());
+  }
+
+  // ---------------------------------------------------------------------------
+  // Stable customer_id for KLIPY (session-scoped for guests)
+  // ---------------------------------------------------------------------------
+
   function getCustomerId() {
     const key = "nexus-gifs-cid";
     let id = sessionStorage.getItem(key);
@@ -46,90 +64,25 @@
     return id;
   }
 
-  function klipyPath(type) {
-    return type === "stickers" ? "stickers" : "gifs";
+  // ---------------------------------------------------------------------------
+  // KLIPY fetchers — proxied through our Plug.Router at BASE/gifs/*
+  // ---------------------------------------------------------------------------
+
+  function fetchTrending(type, page) {
+    const cid = getCustomerId();
+    return apiFetch(`/gifs/trending?type=${type}&page=${page}&customer_id=${cid}`);
   }
 
-  function toKlipyFilter(rating) {
-    if (rating === "G")     return "high";
-    if (rating === "PG")    return "medium";
-    if (rating === "PG-13") return "low";
-    return "off"; // R or default
+  function fetchSearch(type, query, page) {
+    const cid = getCustomerId();
+    return apiFetch(`/gifs/search?type=${type}&q=${encodeURIComponent(query)}&page=${page}&customer_id=${cid}`);
   }
 
-  function fetchTrending(apiKey, type, page) {
-    const params = new URLSearchParams({
-      per_page:    PER_PAGE,
-      page,
-      customer_id: getCustomerId(),
-    });
-    return fetch(`${KLIPY_BASE}/${apiKey}/${klipyPath(type)}/trending?${params}`)
-      .then(r => r.json());
-  }
-
-  function fetchSearch(apiKey, type, query, page, contentFilter) {
-    const params = new URLSearchParams({
-      per_page:       PER_PAGE,
-      page,
-      q:              query,
-      content_filter: toKlipyFilter(contentFilter || "R"),
-      customer_id:    getCustomerId(),
-    });
-    return fetch(`${KLIPY_BASE}/${apiKey}/${klipyPath(type)}/search?${params}`)
-      .then(r => r.json());
-  }
-
-  function fireShare(apiKey, type, slug, query) {
-    fetch(`${KLIPY_BASE}/${apiKey}/${klipyPath(type)}/share/${slug}`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ customer_id: getCustomerId(), q: query || "" }),
+  function fireShare(type, slug, query) {
+    apiFetch("/gifs/share", {
+      method: "POST",
+      body: { type, slug, query: query || "", customer_id: getCustomerId() },
     }).catch(() => {});
-  }
-
-  // ---------------------------------------------------------------------------
-  // Auth helpers — same as Gamepedia
-  // ---------------------------------------------------------------------------
-
-  function authHeaders() {
-    const token = localStorage.getItem("nexus_token");
-    return {
-      "Content-Type": "application/json",
-      ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-    };
-  }
-
-  // Load extension settings from Nexus — returns { api_key, content_filter, use_webp }
-  function loadSettings() {
-    return fetch("/api/v1/admin/extensions/nexus-gifs", { headers: authHeaders() })
-      .then(r => r.json())
-      .then(d => d.extension?.settings || {});
-  }
-
-  // ---------------------------------------------------------------------------
-  // URL extraction from KLIPY nested file object
-  // ---------------------------------------------------------------------------
-
-  function resolvePreviewUrl(item, useWebp) {
-    const f = item.file;
-    if (!f) return null;
-    if (useWebp) {
-      return f.xs?.webp?.url || f.xs?.gif?.url  || f.xs?.png?.url ||
-             f.sm?.webp?.url || f.sm?.gif?.url  || f.sm?.png?.url || null;
-    }
-    return f.xs?.gif?.url  || f.xs?.webp?.url || f.xs?.png?.url ||
-           f.sm?.gif?.url  || f.sm?.webp?.url || f.sm?.png?.url || null;
-  }
-
-  function resolveEmbedUrl(item, useWebp) {
-    const f = item.file;
-    if (!f) return null;
-    if (useWebp) {
-      return f.hd?.webp?.url || f.hd?.gif?.url || f.hd?.png?.url ||
-             f.md?.webp?.url || f.md?.gif?.url || f.md?.png?.url || null;
-    }
-    return f.hd?.gif?.url  || f.hd?.webp?.url || f.hd?.png?.url ||
-           f.md?.gif?.url  || f.md?.webp?.url || f.md?.png?.url || null;
   }
 
   // ---------------------------------------------------------------------------
@@ -188,13 +141,31 @@
   document.head.appendChild(style);
 
   // ---------------------------------------------------------------------------
-  // GIF Grid Item
+  // URL extraction from KLIPY nested file object
   // ---------------------------------------------------------------------------
 
-  function GifItem({ item, onSelect, useWebp }) {
+  function resolvePreviewUrl(item) {
+    const f = item.file;
+    if (!f) return null;
+    return f.xs?.webp?.url || f.xs?.gif?.url || f.xs?.png?.url ||
+           f.sm?.webp?.url || f.sm?.gif?.url || f.sm?.png?.url || null;
+  }
+
+  function resolveEmbedUrl(item) {
+    const f = item.file;
+    if (!f) return null;
+    return f.hd?.gif?.url  || f.hd?.webp?.url || f.hd?.png?.url ||
+           f.md?.gif?.url  || f.md?.webp?.url  || f.md?.png?.url || null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // GIF Grid Item — lazy loaded image with blur preview
+  // ---------------------------------------------------------------------------
+
+  function GifItem({ item, onSelect }) {
     const [loaded, setLoaded] = useState(false);
-    const previewUrl = resolvePreviewUrl(item, useWebp);
-    const embedUrl   = resolveEmbedUrl(item, useWebp);
+    const previewUrl = resolvePreviewUrl(item);
+    const embedUrl   = resolveEmbedUrl(item);
     if (!previewUrl || !embedUrl) return null;
     const blurStyle = item.blur_preview
       ? { backgroundImage: `url('${item.blur_preview}')`, backgroundSize: "cover", backgroundPosition: "center" }
@@ -216,14 +187,10 @@
   }
 
   // ---------------------------------------------------------------------------
-  // GIF Picker Modal — receives resolved settings so it can call KLIPY directly
+  // GIF Picker Modal
   // ---------------------------------------------------------------------------
 
-  function GifPickerModal({ onClose, onInsert, settings }) {
-    const apiKey        = settings.api_key        || null;
-    const contentFilter = settings.content_filter || "R";
-    const useWebp       = settings.use_webp       || false;
-
+  function GifPickerModal({ onClose, onInsert, apiKeySet }) {
     const [tab,         setTab]         = useState("gifs");
     const [query,       setQuery]       = useState("");
     const [isSearching, setIsSearching] = useState(false);
@@ -241,20 +208,21 @@
     tabRef.current   = tab;
 
     useEffect(() => {
-      if (!apiKey) { setLoadingInit(false); return; }
+      if (!apiKeySet) { setLoadingInit(false); return; }
       setItems([]); setPage(1); setHasNext(true);
       setLoadingInit(true); setError(null);
       setIsSearching(false); setQuery("");
-      fetchTrending(apiKey, tab, 1)
+
+      fetchTrending(tab, 1)
         .then(d => {
-          if (!d.result) { setError("KLIPY returned an error. Check your API key."); return; }
-          setItems(d.data?.data || []);
-          setHasNext(d.data?.has_next || false);
+          if (d.error) { setError(d.error); return; }
+          setItems(d.items || []);
+          setHasNext(d.has_next || false);
           setPage(2);
         })
-        .catch(() => setError("Could not reach KLIPY. Check your API key."))
+        .catch(() => setError("Could not load content. Check your KLIPY API key."))
         .finally(() => setLoadingInit(false));
-    }, [tab, apiKey]);
+    }, [tab, apiKeySet]);
 
     useEffect(() => {
       setTimeout(() => inputRef.current?.focus(), 120);
@@ -271,11 +239,11 @@
       setIsSearching(true);
       setItems([]); setPage(1); setHasNext(true);
       setLoadingInit(true); setError(null);
-      fetchSearch(apiKey, tabRef.current, q.trim(), 1, contentFilter)
+      fetchSearch(tabRef.current, q.trim(), 1)
         .then(d => {
-          if (!d.result) { setError("Search failed. Check your API key."); return; }
-          setItems(d.data?.data || []);
-          setHasNext(d.data?.has_next || false);
+          if (d.error) { setError(d.error); return; }
+          setItems(d.items || []);
+          setHasNext(d.has_next || false);
           setPage(2);
         })
         .catch(() => setError("Search failed."))
@@ -286,11 +254,11 @@
       setQuery(""); setIsSearching(false);
       setItems([]); setPage(1); setHasNext(true);
       setLoadingInit(true); setError(null);
-      fetchTrending(apiKey, tabRef.current, 1)
+      fetchTrending(tabRef.current, 1)
         .then(d => {
-          if (!d.result) { setError("Could not load content."); return; }
-          setItems(d.data?.data || []);
-          setHasNext(d.data?.has_next || false);
+          if (d.error) { setError(d.error); return; }
+          setItems(d.items || []);
+          setHasNext(d.has_next || false);
           setPage(2);
         })
         .catch(() => setError("Could not load content."))
@@ -298,55 +266,79 @@
     }
 
     function loadMore() {
-      if (loadingMore || !hasNext || !apiKey) return;
+      if (loadingMore || !hasNext) return;
       setLoadingMore(true);
       const currentPage = page;
       const fetcher = isSearching
-        ? fetchSearch(apiKey, tabRef.current, queryRef.current.trim(), currentPage, contentFilter)
-        : fetchTrending(apiKey, tabRef.current, currentPage);
+        ? fetchSearch(tabRef.current, queryRef.current.trim(), currentPage)
+        : fetchTrending(tabRef.current, currentPage);
       fetcher
         .then(d => {
-          if (!d.result) return;
-          setItems(prev => [...prev, ...(d.data?.data || [])]);
-          setHasNext(d.data?.has_next || false);
+          if (d.error) return;
+          setItems(prev => [...prev, ...(d.items || [])]);
+          setHasNext(d.has_next || false);
           setPage(p => p + 1);
         })
         .catch(() => {})
         .finally(() => setLoadingMore(false));
     }
 
+    function onScroll(ev) {
+      const el = ev.target;
+      if (el.scrollHeight - el.scrollTop - el.clientHeight < 240) loadMore();
+    }
+
     function handleSelect(item, embedUrl) {
       const title = item.title || (tabRef.current === "stickers" ? "sticker" : "GIF");
       onInsert(`![${title}](${embedUrl})`);
-      if (apiKey) fireShare(apiKey, tabRef.current, item.slug, isSearching ? queryRef.current.trim() : "");
+      fireShare(tabRef.current, item.slug, isSearching ? queryRef.current.trim() : "");
       onClose();
     }
 
     function renderContent() {
-      if (!apiKey) {
+      if (!apiKeySet) {
         return e("div", { className: "ngifs-no-key" },
-          e("div", { className: "ngifs-no-key-icon" }, e("i", { className: "fa-solid fa-key" })),
-          e("div", { style: { fontSize: 15, fontWeight: 600, color: "var(--t1)" } }, "KLIPY API Key Required"),
+          e("div", { className: "ngifs-no-key-icon" },
+            e("i", { className: "fa-solid fa-key" })
+          ),
+          e("div", { style: { fontSize: 15, fontWeight: 600, color: "var(--t1)" } },
+            "KLIPY API Key Required"
+          ),
           e("div", { style: { fontSize: 13, color: "var(--t4)", lineHeight: 1.6, maxWidth: 280 } },
-            "Add your KLIPY API key in Admin Panel \u2192 GIFs \u2192 Credentials."
+            "Add your KLIPY API key in Admin \u2192 GIFs to enable this feature."
           )
         );
       }
-      if (error)       return e("div", { className: "ngifs-state" }, e("i", { className: "fa-solid fa-circle-exclamation" }), e("span", null, error));
-      if (loadingInit) return e("div", { className: "ngifs-state" }, e("div", { className: "ngifs-spinner" }));
-      if (!items.length) return e("div", { className: "ngifs-state" }, e("i", { className: "fa-solid fa-face-sad-tear" }), e("span", null, "No results found."));
-
-      return e("div", {
-        className: "ngifs-grid-wrap",
-        onScroll: ev => {
-          const el = ev.target;
-          if (el.scrollHeight - el.scrollTop - el.clientHeight < 240) loadMore();
-        },
-      },
+      if (error) {
+        return e("div", { className: "ngifs-state" },
+          e("i", { className: "fa-solid fa-circle-exclamation" }),
+          e("span", null, error)
+        );
+      }
+      if (loadingInit) {
+        return e("div", { className: "ngifs-state" },
+          e("div", { className: "ngifs-spinner" })
+        );
+      }
+      if (!items.length) {
+        return e("div", { className: "ngifs-state" },
+          e("i", { className: "fa-solid fa-face-sad-tear" }),
+          e("span", null, "No results found.")
+        );
+      }
+      return e("div", { className: "ngifs-grid-wrap", onScroll },
         e("div", { className: "ngifs-grid" },
-          items.map((item, i) => e(GifItem, { key: `${item.id || item.slug}-${i}`, item, onSelect: handleSelect, useWebp }))
+          items.map((item, i) =>
+            e(GifItem, {
+              key:      `${item.id || item.slug}-${i}`,
+              item,
+              onSelect: handleSelect,
+            })
+          )
         ),
-        loadingMore && e("div", { className: "ngifs-load-more" }, e("div", { className: "ngifs-spinner" }))
+        loadingMore && e("div", { className: "ngifs-load-more" },
+          e("div", { className: "ngifs-spinner" })
+        )
       );
     }
 
@@ -357,9 +349,11 @@
       e("div", { className: "ngifs-modal" },
         e("div", { className: "ngifs-header" },
           e("span", { className: "ngifs-title" }, "Insert Media"),
-          e("button", { className: "ngifs-close", onClick: onClose, "aria-label": "Close" },
-            e("i", { className: "fa-solid fa-xmark" })
-          )
+          e("button", {
+            className: "ngifs-close",
+            onClick:   onClose,
+            "aria-label": "Close",
+          }, e("i", { className: "fa-solid fa-xmark" }))
         ),
         e("div", { className: "ngifs-tabs" },
           ["gifs", "stickers"].map(t =>
@@ -383,21 +377,27 @@
               autoComplete: "off",
               spellCheck:   false,
             }),
-            isSearching && e("button", { className: "ngifs-clear-btn", onClick: clearSearch }, "Trending")
+            isSearching && e("button", {
+              className: "ngifs-clear-btn",
+              onClick:   clearSearch,
+            }, "Trending")
           )
         ),
         renderContent(),
         e("div", { className: "ngifs-footer" },
-          e("a", { href: "https://klipy.com", target: "_blank", rel: "noopener noreferrer", className: "ngifs-attribution" },
-            "Powered by ", e("span", null, "KLIPY")
-          )
+          e("a", {
+            href:      "https://klipy.com",
+            target:    "_blank",
+            rel:       "noopener noreferrer",
+            className: "ngifs-attribution",
+          }, "Powered by ", e("span", null, "KLIPY"))
         )
       )
     );
   }
 
   // ---------------------------------------------------------------------------
-  // Modal portal
+  // Modal portal — opens/closes the GIF picker
   // ---------------------------------------------------------------------------
 
   let _modalRoot = null;
@@ -408,22 +408,32 @@
     const container = document.createElement("div");
     container.id = "nexus-gifs-modal-root";
     document.body.appendChild(container);
+
     const root = window.ReactDOM.createRoot(container);
     _modalRoot = root;
 
-    function close() { root.unmount(); container.remove(); _modalRoot = null; }
+    function close() {
+      root.unmount();
+      container.remove();
+      _modalRoot = null;
+    }
 
-    // Render loading state immediately
-    root.render(e(GifPickerModal, { onClose: close, onInsert, settings: {} }));
+    // Render optimistically — check API key state in the background
+    root.render(e(GifPickerModal, { onClose: close, onInsert, apiKeySet: true }));
 
-    // Load settings then re-render with real values — same pattern as Gamepedia
-    loadSettings()
-      .then(settings => root.render(e(GifPickerModal, { onClose: close, onInsert, settings })))
-      .catch(() => root.render(e(GifPickerModal, { onClose: close, onInsert, settings: {} })));
+    apiFetch("/settings")
+      .then(d => {
+        if (!d.api_key_set) {
+          root.render(e(GifPickerModal, { onClose: close, onInsert, apiKeySet: false }));
+        }
+      })
+      .catch(() => {}); // optimistic render stands on network error
   }
 
   // ---------------------------------------------------------------------------
-  // Cursor insertion
+  // Cursor insertion helper
+  // Captures the active textarea before the modal opens so we know where
+  // to insert the resulting markdown when the user picks a GIF.
   // ---------------------------------------------------------------------------
 
   function makeInserter() {
@@ -444,67 +454,78 @@
       ta.focus();
       ta.setSelectionRange(start, end);
       if (!document.execCommand("insertText", false, toInsert)) {
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+        const setter = Object.getOwnPropertyDescriptor(
+          window.HTMLTextAreaElement.prototype, "value"
+        ).set;
         setter.call(ta, before + toInsert + after);
         ta.dispatchEvent(new Event("input", { bubbles: true }));
       }
-      ta.setSelectionRange(before.length + toInsert.length, before.length + toInsert.length);
+      const newCursor = before.length + toInsert.length;
+      ta.setSelectionRange(newCursor, newCursor);
     };
   }
 
   // ---------------------------------------------------------------------------
-  // Admin Panel — uses NexusExtensionTemplates.TabbedPanel
-  // Nexus renders it natively; settings saved via PATCH /api/v1/admin/extensions/nexus-gifs/settings
+  // Admin panel — uses NexusExtensionTemplates.TabbedPanel with two
+  // SimpleSettingsPanel tabs matching the settings_tabs in manifest.json.
+  //
+  // The templates handle everything: fetching current settings from
+  // GET /api/v1/admin/extensions/nexus-gifs, top-bar Save Changes wiring,
+  // dirty-state tracking, and saving to
+  // PATCH /api/v1/admin/extensions/nexus-gifs/settings.
   // ---------------------------------------------------------------------------
 
   function GifsAdminPanel() {
-    // NexusExtensionTemplates is set by AdminExtensions.jsx before any extension
-    // admin panel is rendered, so it is always available here at render time.
-    const { TabbedPanel } = window.NexusExtensionTemplates;
+    const { SimpleSettingsPanel, TabbedPanel } = window.NexusExtensionTemplates;
 
     return e(TabbedPanel, {
-      slug: "nexus-gifs",
       tabs: [
         {
           key:    "credentials",
           label:  "Credentials",
           icon:   "fa-key",
-          fields: [
-            {
-              key:         "api_key",
-              label:       "KLIPY API Key",
-              type:        "string",
-              secret:      true,
-              required:    true,
-              placeholder: "Your KLIPY API key",
-              hint:        "Get a free key at klipy.com. Required to load and search GIFs.",
-            },
-          ],
+          render: () => e(SimpleSettingsPanel, {
+            slug:   SLUG,
+            fields: [
+              {
+                key:         "api_key",
+                label:       "KLIPY API Key",
+                type:        "string",
+                secret:      true,
+                required:    true,
+                placeholder: "Your KLIPY API key",
+                hint:        "Get a free key at klipy.com. Stored server-side and never sent to the browser.",
+              },
+            ],
+          }),
         },
         {
           key:    "content",
           label:  "Content",
           icon:   "fa-sliders",
-          fields: [
-            {
-              key:     "content_filter",
-              label:   "Content Filter",
-              type:    "select",
-              options: [
-                { value: "G",     label: "G \u2014 Family Safe" },
-                { value: "PG",    label: "PG" },
-                { value: "PG-13", label: "PG-13" },
-                { value: "R",     label: "R \u2014 Unrestricted" },
-              ],
-              hint: "Controls the maturity of content returned by KLIPY search.",
-            },
-            {
-              key:  "use_webp",
-              label: "Use WebP format",
-              type:  "boolean",
-              hint:  "Smaller files, better performance. Disable if GIFs don\u2019t display correctly.",
-            },
-          ],
+          render: () => e(SimpleSettingsPanel, {
+            slug:   SLUG,
+            fields: [
+              {
+                key:     "content_filter",
+                label:   "Content Filter",
+                type:    "select",
+                hint:    "Controls the maturity of content returned by KLIPY search.",
+                options: [
+                  { value: "G",     label: "G \u2014 Family Safe" },
+                  { value: "PG",    label: "PG" },
+                  { value: "PG-13", label: "PG-13" },
+                  { value: "R",     label: "R \u2014 Unrestricted" },
+                ],
+              },
+              {
+                key:   "use_webp",
+                label: "Use WebP format",
+                type:  "boolean",
+                hint:  "Smaller files, better performance. Disable if GIFs don\u2019t display correctly.",
+              },
+            ],
+          }),
         },
       ],
     });
@@ -514,18 +535,22 @@
   // Registrations
   // ---------------------------------------------------------------------------
 
+  // Composer toolbar button — declared in manifest as id "gif-picker"
   NE.registerToolbarButton({
-    icon:  "fa-solid fa-photo-film",
-    tip:   "Insert GIF or Sticker",
-    color: "var(--t4)",
-    scope: "both",
-    onClick(_linkedItems, _setLinkedItems) {
+    slug:     SLUG,
+    id:       "gif-picker",
+    icon:     "fa-solid fa-photo-film",
+    tip:      "Insert GIF or Sticker",
+    scope:    "both",
+    priority: 60,
+    onClick({ context }) {
       const inserter = makeInserter();
       openGifPicker(inserter);
     },
-  }, 60);
+  });
 
-  NE.registerAdminPanel("nexus-gifs", {
+  // Admin panel — declared in manifest as { label: "GIFs", icon: "fa-photo-film" }
+  NE.registerAdminPanel(SLUG, {
     label:     "GIFs",
     icon:      "fa-photo-film",
     component: GifsAdminPanel,
