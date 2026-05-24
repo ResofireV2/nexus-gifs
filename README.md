@@ -1,34 +1,41 @@
+<img src="https://raw.githubusercontent.com/ResofireV2/nexus-gifs/main/priv/static/banner.webp" alt="GIFs" width="100%">
+
 # nexus-gifs
 
-A Nexus extension that adds a GIF and Sticker picker to the post composer, powered by [KLIPY](https://klipy.com).
+A Nexus extension that adds a GIF and sticker picker to the post composer, powered by [KLIPY](https://klipy.com).
 
 Runs inside the Nexus VM — no separate service, no Docker, no subdomain required.
 
 ## Features
 
-- GIF and Sticker tabs with trending content on open
+- GIF and sticker tabs with trending content on open
 - Search powered by KLIPY with content filtering (G / PG / PG-13 / R)
-- Infinite scroll
+- Infinite scroll with lazy-loaded images
 - Inserts as standard Markdown `![title](url)` — renders inline in posts
-- Settings stored in Nexus's own extension settings table
+- WebP format option for smaller file sizes
+
+## Requirements
+
+- Nexus `manifest_version` 2
+- A free [KLIPY](https://klipy.com) API key
 
 ## Install
 
-In the Nexus admin panel go to **Extensions → Install from URL** and paste:
+In the Nexus admin panel go to **Extensions → Store** and click **Install** on the GIFs card, or install from URL:
 
 ```
-https://github.com/ResofireV2/nexus-gifs
+https://raw.githubusercontent.com/ResofireV2/nexus-gifs/main/manifest.json
 ```
 
 ## Configure
 
-After installing, go to **Admin → GIFs → Credentials** and enter your KLIPY API key.
+After installing, go to **Admin → GIFs** and enter your KLIPY API key. Optionally set a content filter rating and enable WebP format.
 
-Get a free key at [klipy.com](https://klipy.com).
+Get a free API key at [klipy.com](https://klipy.com).
 
 ## KLIPY Attribution
 
-Per KLIPY API guidelines (automatically satisfied):
+Per KLIPY API guidelines (automatically satisfied by this extension):
 
 - Search input placeholder: **"Search KLIPY"** ✓
 - Share trigger fired on item selection ✓
