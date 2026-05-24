@@ -466,66 +466,45 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Admin panel — uses NexusExtensionTemplates.TabbedPanel with two
-  // SimpleSettingsPanel tabs matching the settings_tabs in manifest.json.
-  //
-  // The templates handle everything: fetching current settings from
-  // GET /api/v1/admin/extensions/nexus-gifs, top-bar Save Changes wiring,
-  // dirty-state tracking, and saving to
-  // PATCH /api/v1/admin/extensions/nexus-gifs/settings.
+  // Admin panel — uses NexusExtensionTemplates.SimpleSettingsPanel.
+  // The template handles everything: fetching current settings, top-bar Save
+  // Changes wiring, dirty-state tracking, and saving. All three settings fields
+  // are in one panel — the guide is explicit that SimpleSettingsPanel is the
+  // right choice when an extension has only settings and no custom views.
   // ---------------------------------------------------------------------------
 
   function GifsAdminPanel() {
-    const { SimpleSettingsPanel, TabbedPanel } = window.NexusExtensionTemplates;
+    const { SimpleSettingsPanel } = window.NexusExtensionTemplates;
 
-    return e(TabbedPanel, {
-      tabs: [
+    return e(SimpleSettingsPanel, {
+      slug:   SLUG,
+      fields: [
         {
-          key:    "credentials",
-          label:  "Credentials",
-          icon:   "fa-key",
-          render: () => e(SimpleSettingsPanel, {
-            slug:   SLUG,
-            fields: [
-              {
-                key:         "api_key",
-                label:       "KLIPY API Key",
-                type:        "string",
-                secret:      true,
-                required:    true,
-                placeholder: "Your KLIPY API key",
-                hint:        "Get a free key at klipy.com. Stored server-side and never sent to the browser.",
-              },
-            ],
-          }),
+          key:         "api_key",
+          label:       "KLIPY API Key",
+          type:        "string",
+          secret:      true,
+          required:    true,
+          placeholder: "Your KLIPY API key",
+          hint:        "Get a free key at klipy.com. Stored server-side and never sent to the browser.",
         },
         {
-          key:    "content",
-          label:  "Content",
-          icon:   "fa-sliders",
-          render: () => e(SimpleSettingsPanel, {
-            slug:   SLUG,
-            fields: [
-              {
-                key:     "content_filter",
-                label:   "Content Filter",
-                type:    "select",
-                hint:    "Controls the maturity of content returned by KLIPY search.",
-                options: [
-                  { value: "G",     label: "G \u2014 Family Safe" },
-                  { value: "PG",    label: "PG" },
-                  { value: "PG-13", label: "PG-13" },
-                  { value: "R",     label: "R \u2014 Unrestricted" },
-                ],
-              },
-              {
-                key:   "use_webp",
-                label: "Use WebP format",
-                type:  "boolean",
-                hint:  "Smaller files, better performance. Disable if GIFs don\u2019t display correctly.",
-              },
-            ],
-          }),
+          key:     "content_filter",
+          label:   "Content Filter",
+          type:    "select",
+          hint:    "Controls the maturity of content returned by KLIPY search.",
+          options: [
+            { value: "G",     label: "G \u2014 Family Safe" },
+            { value: "PG",    label: "PG" },
+            { value: "PG-13", label: "PG-13" },
+            { value: "R",     label: "R \u2014 Unrestricted" },
+          ],
+        },
+        {
+          key:   "use_webp",
+          label: "Use WebP format",
+          type:  "boolean",
+          hint:  "Smaller files, better performance. Disable if GIFs don\u2019t display correctly.",
         },
       ],
     });
